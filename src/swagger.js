@@ -241,6 +241,10 @@ const openApiSpec = {
 };
 
 function registerSwagger(app) {
+  app.get("/docs", (req, res) => {
+    res.redirect(301, "/docs/");
+  });
+
   app.get("/docs-json", (req, res) => {
     res.status(200).json(openApiSpec);
   });
