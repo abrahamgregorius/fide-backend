@@ -5,6 +5,29 @@ const { ok, badRequest, unauthorized, notFound } = require("../lib/http");
 
 const router = express.Router();
 
+const endpointList = [
+  { method: "GET", path: "/health", authRequired: false, description: "Health check" },
+  { method: "GET", path: "/help", authRequired: false, description: "List all endpoints" },
+  { method: "GET", path: "/api/docs/", authRequired: false, description: "Swagger UI" },
+  { method: "GET", path: "/api/docs-json", authRequired: false, description: "OpenAPI JSON spec" },
+  { method: "GET", path: "/chapters", authRequired: false, description: "List chapters" },
+  { method: "GET", path: "/chapters/:chapterSlug", authRequired: false, description: "Get chapter by slug" },
+  { method: "GET", path: "/chapters/:chapterSlug/full", authRequired: false, description: "Get chapter with full hierarchy" },
+  { method: "GET", path: "/sections/:sectionSlug", authRequired: false, description: "Get section by slug" },
+  { method: "GET", path: "/chapters/:chapterSlug/sections", authRequired: false, description: "List sections by chapter" },
+  { method: "GET", path: "/lessons/:lessonSlug", authRequired: false, description: "Get lesson by slug" },
+  { method: "GET", path: "/sections/:sectionSlug/lessons", authRequired: false, description: "List lessons by section" },
+  { method: "GET", path: "/lessons/:lessonSlug/full", authRequired: false, description: "Get lesson with all contents" },
+  { method: "GET", path: "/contents/:contentSlug", authRequired: false, description: "Get content by slug" },
+  { method: "GET", path: "/lessons/:lessonSlug/contents", authRequired: false, description: "List contents by lesson (supports ?type=material|question)" },
+  { method: "POST", path: "/answers", authRequired: true, description: "Submit answer for a question" },
+  { method: "GET", path: "/progress", authRequired: true, description: "Get user progress" },
+  { method: "POST", path: "/progress/lesson/:lessonSlug", authRequired: true, description: "Upsert lesson progress" },
+  { method: "POST", path: "/progress/content/:contentSlug", authRequired: true, description: "Upsert content progress" },
+  { method: "GET", path: "/sections/:sectionSlug/boss", authRequired: false, description: "Get section boss details" },
+  { method: "POST", path: "/boss/:bossSlug/submit", authRequired: true, description: "Submit boss answer" },
+];
+
 function normalizeContentRow(row) {
   if (!row) return null;
 
@@ -23,6 +46,16 @@ function normalizeContentRow(row) {
     choices: row.content_choices || [],
   };
 }
+
+router.get(
+  "/help",
+  asyncHandler(async (req, res) => {
+    return ok(res, {
+      total: endpointList.length,
+      endpoints: endpointList,
+    });
+  })
+);
 
 router.get(
   "/chapters",
