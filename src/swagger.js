@@ -241,15 +241,15 @@ const openApiSpec = {
 };
 
 function registerSwagger(app) {
-  app.get("/docs", (req, res) => {
-    res.redirect(301, "/docs/");
+  app.get("/api/docs", (req, res) => {
+    res.redirect(301, "/api/docs/");
   });
 
-  app.get("/docs-json", (req, res) => {
+  app.get("/api/docs-json", (req, res) => {
     res.status(200).json(openApiSpec);
   });
 
-  app.use("/docs", swaggerUi.serve, swaggerUi.setup(openApiSpec, { explorer: true }));
+  app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openApiSpec, { explorer: true }));
 }
 
 module.exports = {
