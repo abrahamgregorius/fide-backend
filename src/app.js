@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const cors = require("cors");
 const express = require("express");
 const apiRoutes = require("./routes/api");
 const authRoutes = require("./routes/auth");
@@ -8,6 +9,7 @@ const { serverError } = require("./lib/http");
 
 const app = express();
 
+app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (req, res) => {
