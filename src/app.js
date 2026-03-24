@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const express = require("express");
 const apiRoutes = require("./routes/api");
+const authRoutes = require("./routes/auth");
 const { registerSwagger } = require("./swagger");
 const { serverError } = require("./lib/http");
 
@@ -15,6 +16,7 @@ app.get("/health", (req, res) => {
 
 registerSwagger(app);
 
+app.use("/", authRoutes);
 app.use("/", apiRoutes);
 
 app.use((err, req, res, next) => {

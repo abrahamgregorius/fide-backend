@@ -8,8 +8,8 @@ Success response:
 
 ```json
 {
-	"success": true,
-	"data": {}
+  "success": true,
+  "data": {}
 }
 ```
 
@@ -17,17 +17,25 @@ Error response:
 
 ```json
 {
-	"success": false,
-	"message": "Error message"
+  "success": false,
+  "message": "Error message"
 }
 ```
 
 ## Authentication
 
-Endpoint yang butuh login memakai header:
+### Overview
+
+Sistem auth pakai Supabase JWT. Alur:
+
+1. Signup/Login -> dapat accessToken & refreshToken
+2. Kirim accessToken di header Authorization untuk endpoint yang butuh auth
+3. Kalau token expired, gunakan refreshToken untuk dapat token baru
+
+Header untuk endpoint yang butuh auth:
 
 ```http
-Authorization: Bearer <SUPABASE_ACCESS_TOKEN>
+Authorization: Bearer <ACCESS_TOKEN>
 ```
 
 Endpoint yang butuh auth:
@@ -37,6 +45,92 @@ Endpoint yang butuh auth:
 - `POST /progress/lesson/:lessonSlug`
 - `POST /progress/content/:contentSlug`
 - `POST /boss/:bossSlug/submit`
+
+### POST /auth/signup
+
+Daftar user baru dengan email dan password.
+
+Body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword"
+}
+```
+
+Response `data`:
+
+```json
+{
+  "user": {
+    "id": "<uuid>",
+    "email": "user@example.com"
+  },
+  "session": {
+    "accessToken": "<jwt>",
+    "refreshToken": "<jwt>",
+    "expiresIn": 3600,
+    "expiresAt": 1234567890
+  },
+  "message": "Signup successful. Check your email to confirm."
+}
+```
+
+### POST /auth/login
+
+Login dengan email dan password.
+
+Body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword"
+}
+```
+
+Response `data`:
+
+```json
+{
+  "user": {
+    "id": "<uuid>",
+    "email": "user@example.com"
+  },
+  "session": {
+    "accessToken": "<jwt>",
+    "refreshToken": "<jwt>",
+    "expiresIn": 3600,
+    "expiresAt": 1234567890
+  }
+}
+```
+
+### POST /auth/refresh
+
+Dapatkan access token baru menggunakan refresh token.
+
+Body:
+
+```json
+{
+  "refreshToken": "<refresh_token>"
+}
+```
+
+Response `data`:
+
+```json
+{
+  "session": {
+    "accessToken": "<jwt>",
+    "refreshToken": "<jwt>",
+    "expiresIn": 3600,
+    "expiresAt": 1234567890
+  }
+}
+```
 
 ## Chapters
 
