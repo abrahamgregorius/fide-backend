@@ -42,6 +42,7 @@ Endpoint yang butuh auth:
 
 - `POST /answers`
 - `GET /progress`
+- `GET /profile`
 - `POST /progress/lesson/:lessonSlug`
 - `POST /progress/content/:contentSlug`
 - `POST /boss/:bossSlug/submit`
@@ -257,7 +258,40 @@ Response `data`:
 	"contentSlug": "q-1-1-1",
 	"selectedOption": "c",
 	"isCorrect": true,
-	"explanation": "..."
+  "explanation": "..."
+}
+```
+
+## Profile
+
+### GET /profile
+
+Ambil profil user saat ini, termasuk points, level, rank, dan progres menuju rank berikutnya.
+
+Auth: required
+
+Response `data` contoh:
+
+```json
+{
+  "userId": "<uuid>",
+  "points": 345,
+  "level": 2,
+  "rank": "Fidelis",
+  "breakdown": {
+    "correctAnswers": 20,
+    "completedLessons": 3,
+    "bossSubmissions": 1,
+    "pointsPerCorrectAnswer": 10,
+    "pointsPerCompletedLesson": 25,
+    "pointsPerBossSubmission": 50
+  },
+  "nextRank": {
+    "level": 3,
+    "rank": "Discipulis",
+    "requiredPoints": 500,
+    "pointsToNextRank": 155
+  }
 }
 ```
 

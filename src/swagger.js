@@ -161,6 +161,14 @@ const openApiSpec = {
         responses: { 200: { description: "OK" }, 401: { description: "Unauthorized" } },
       },
     },
+    "/profile": {
+      get: {
+        tags: ["Profile"],
+        summary: "Get current user profile, points, level, and rank",
+        security: [{ bearerAuth: [] }],
+        responses: { 200: { description: "OK" }, 401: { description: "Unauthorized" } },
+      },
+    },
     "/progress/lesson/{lessonSlug}": {
       post: {
         tags: ["Progress"],

@@ -5,6 +5,32 @@ const { ok, badRequest, unauthorized, notFound } = require("../lib/http");
 
 const router = express.Router();
 
+const POINTS_PER_CORRECT_ANSWER = 10;
+const POINTS_PER_COMPLETED_LESSON = 25;
+const POINTS_PER_BOSS_SUBMISSION = 50;
+
+const PROFILE_RANKS = [
+  { level: 1, rank: "Catechumen", minPoints: 0 },
+  { level: 2, rank: "Fidelis", minPoints: 200 },
+  { level: 3, rank: "Discipulis", minPoints: 500 },
+  { level: 4, rank: "Theologus", minPoints: 900 },
+  { level: 5, rank: "Doctor Ecclesiae", minPoints: 1400 },
+];
+
+function getProfileRank(points) {
+  let current = PROFILE_RANKS[0];
+
+  for (const rank of PROFILE_RANKS) {
+    if (points >= rank.minPoints) {
+      current = rank;
+      continue;
+    }
+    break;
+  }
+
+  return current;
+}
+
 const endpointList = [
   { method: "GET", path: "/health", authRequired: false, description: "Health check" },
   { method: "GET", path: "/help", authRequired: false, description: "List all endpoints" },
@@ -25,6 +51,7 @@ const endpointList = [
   { method: "GET", path: "/lessons/:lessonSlug/contents", authRequired: false, description: "List contents by lesson (supports ?type=material|question)" },
   { method: "POST", path: "/answers", authRequired: true, description: "Submit answer for a question" },
   { method: "GET", path: "/progress", authRequired: true, description: "Get user progress" },
+  { method: "GET", path: "/profile", authRequired: true, description: "Get user profile rank and level" },
   { method: "POST", path: "/progress/lesson/:lessonSlug", authRequired: true, description: "Upsert lesson progress" },
   { method: "POST", path: "/progress/content/:contentSlug", authRequired: true, description: "Upsert content progress" },
   { method: "GET", path: "/sections/:sectionSlug/boss", authRequired: false, description: "Get section boss details" },
@@ -542,6 +569,79 @@ router.post(
       selectedOption,
       isCorrect,
       explanation: isCorrect ? content.explanation_correct : content.explanation_wrong,
+    });
+  })
+);
+
+router.get(
+  "/profile",
+  asyncHandler(async (req, res) => {
+    const user = await getAuthenticatedUser(req);
+
+    if (!user) {
+      return unauthorized(res, "Bearer token is required for viewing profile.");
+    }
+
+    const supabase = getSupabaseClient(req);
+
+    const [correctAnswersResult, completedLessonsResult, bossSubmissionsResult] = await Promise.all([
+      supabase
+        .from("answers")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_correct", true),
+      supabase
+        .from("lesson_progress")
+        .select("lesson_id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("status", "completed"),
+      supabase
+        .from("boss_submissions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id),
+    ]);
+
+    if (correctAnswersResult.error) throw correctAnswersResult.error;
+    if (completedLessonsResult.error) throw completedLessonsResult.error;
+    if (bossSubmissionsResult.error) throw bossSubmissionsResult.error;
+
+    const correctAnswers = correctAnswersResult.count || 0;
+    const completedLessons = completedLessonsResult.count || 0;
+    const bossSubmissions = bossSubmissionsResult.count || 0;
+
+    const points =
+      correctAnswers * POINTS_PER_CORRECT_ANSWER +
+      completedLessons * POINTS_PER_COMPLETED_LESSON +
+      bossSubmissions * POINTS_PER_BOSS_SUBMISSION;
+
+    const currentRank = getProfileRank(points);
+    const currentRankIndex = PROFILE_RANKS.findIndex((rank) => rank.level === currentRank.level);
+    const nextRank =
+      currentRankIndex >= 0 && currentRankIndex < PROFILE_RANKS.length - 1
+        ? PROFILE_RANKS[currentRankIndex + 1]
+        : null;
+
+    return ok(res, {
+      userId: user.id,
+      points,
+      level: currentRank.level,
+      rank: currentRank.rank,
+      breakdown: {
+        correctAnswers,
+        completedLessons,
+        bossSubmissions,
+        pointsPerCorrectAnswer: POINTS_PER_CORRECT_ANSWER,
+        pointsPerCompletedLesson: POINTS_PER_COMPLETED_LESSON,
+        pointsPerBossSubmission: POINTS_PER_BOSS_SUBMISSION,
+      },
+      nextRank: nextRank
+        ? {
+            level: nextRank.level,
+            rank: nextRank.rank,
+            requiredPoints: nextRank.minPoints,
+            pointsToNextRank: Math.max(nextRank.minPoints - points, 0),
+          }
+        : null,
     });
   })
 );
