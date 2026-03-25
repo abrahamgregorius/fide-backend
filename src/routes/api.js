@@ -13,6 +13,10 @@ const LEVEL_LIST = [
 	{ level: 5, rank: "Doctor Ecclesiae", min: 1400 },
 ];
 
+const POINTS_PER_CORRECT_ANSWER = 10;
+const POINTS_PER_COMPLETED_LESSON = 50;
+const POINTS_PER_BOSS_SUBMISSION = 100;
+
 function getProfileRank(points) {
   let current = LEVEL_LIST[0];
 
@@ -611,10 +615,10 @@ router.get(
       bossSubmissions * POINTS_PER_BOSS_SUBMISSION;
 
     const currentRank = getProfileRank(points);
-    const currentRankIndex = PROFILE_RANKS.findIndex((rank) => rank.level === currentRank.level);
+    const currentRankIndex = LEVEL_LIST.findIndex((rank) => rank.level === currentRank.level);
     const nextRank =
-      currentRankIndex >= 0 && currentRankIndex < PROFILE_RANKS.length - 1
-        ? PROFILE_RANKS[currentRankIndex + 1]
+      currentRankIndex >= 0 && currentRankIndex < LEVEL_LIST.length - 1
+        ? LEVEL_LIST[currentRankIndex + 1]
         : null;
 
     return ok(res, {
@@ -634,8 +638,8 @@ router.get(
         ? {
             level: nextRank.level,
             rank: nextRank.rank,
-            requiredPoints: nextRank.minPoints,
-            pointsToNextRank: Math.max(nextRank.minPoints - points, 0),
+            requiredPoints: nextRank.min,
+            pointsToNextRank: Math.max(nextRank.min - points, 0),
           }
         : null,
     });
