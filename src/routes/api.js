@@ -5,23 +5,19 @@ const { ok, badRequest, unauthorized, notFound } = require("../lib/http");
 
 const router = express.Router();
 
-const POINTS_PER_CORRECT_ANSWER = 10;
-const POINTS_PER_COMPLETED_LESSON = 25;
-const POINTS_PER_BOSS_SUBMISSION = 50;
-
-const PROFILE_RANKS = [
-  { level: 1, rank: "Catechumen", minPoints: 0 },
-  { level: 2, rank: "Fidelis", minPoints: 200 },
-  { level: 3, rank: "Discipulis", minPoints: 500 },
-  { level: 4, rank: "Theologus", minPoints: 900 },
-  { level: 5, rank: "Doctor Ecclesiae", minPoints: 1400 },
+const LEVEL_LIST = [
+	{ level: 1, rank: "Catechumen", min: 0 },
+	{ level: 2, rank: "Fidelis", min: 200 },
+	{ level: 3, rank: "Discipulis", min: 500 },
+	{ level: 4, rank: "Theologus", min: 900 },
+	{ level: 5, rank: "Doctor Ecclesiae", min: 1400 },
 ];
 
 function getProfileRank(points) {
-  let current = PROFILE_RANKS[0];
+  let current = LEVEL_LIST[0];
 
-  for (const rank of PROFILE_RANKS) {
-    if (points >= rank.minPoints) {
+  for (const rank of LEVEL_LIST) {
+    if (points >= rank.min) {
       current = rank;
       continue;
     }
@@ -662,6 +658,9 @@ router.get(
       contentTotalResult,
       lessonProgressResult,
       contentProgressResult,
+      lessonProgressWithDetailsResult,
+      sectionsWithCountResult,
+      chaptersWithCountResult,
     ] = await Promise.all([
       supabase.from("lessons").select("id", { count: "exact", head: true }),
       supabase.from("contents").select("id", { count: "exact", head: true }),
@@ -673,12 +672,107 @@ router.get(
         .from("content_progress")
         .select("content_id, is_completed, completed_at, updated_at")
         .eq("user_id", user.id),
+      supabase
+        .from("lesson_progress")
+        .select("status, lessons!inner(id, slug, title, section_id, sections!inner(id, slug, title, chapter_id, chapters!inner(id, slug, title)))")
+        .eq("user_id", user.id),
+      supabase
+        .from("sections")
+        .select("id, slug, title, chapter_id, lessons(count)")
+        .order("sort_order"),
+      supabase
+        .from("chapters")
+        .select("id, slug, title, sections(count)")
+        .order("sort_order"),
     ]);
 
     if (lessonTotalResult.error) throw lessonTotalResult.error;
     if (contentTotalResult.error) throw contentTotalResult.error;
     if (lessonProgressResult.error) throw lessonProgressResult.error;
     if (contentProgressResult.error) throw contentProgressResult.error;
+    if (lessonProgressWithDetailsResult.error) throw lessonProgressWithDetailsResult.error;
+    if (sectionsWithCountResult.error) throw sectionsWithCountResult.error;
+    if (chaptersWithCountResult.error) throw chaptersWithCountResult.error;
+
+    const sectionTotals = new Map();
+    for (const sec of sectionsWithCountResult.data) {
+      sectionTotals.set(sec.id, {
+        totalLessons: sec.lessons?.[0]?.count || 0,
+        chapterId: sec.chapter_id,
+      });
+    }
+
+    const chapterTotals = new Map();
+    for (const chap of chaptersWithCountResult.data) {
+      chapterTotals.set(chap.id, {
+        totalSections: chap.sections?.[0]?.count || 0,
+      });
+    }
+
+    const sectionProgressMap = new Map();
+    const chapterProgressMap = new Map();
+
+    for (const row of lessonProgressWithDetailsResult.data) {
+      const lesson = row.lessons;
+      const section = lesson.sections;
+      const chapter = section.chapters;
+
+      // Section progress
+      if (!sectionProgressMap.has(section.id)) {
+        sectionProgressMap.set(section.id, {
+          id: section.id,
+          slug: section.slug,
+          title: section.title,
+          status: "not_started",
+          totalLessons: sectionTotals.get(section.id)?.totalLessons || 0,
+          completedLessons: 0,
+        });
+      }
+      const secProg = sectionProgressMap.get(section.id);
+      if (row.status === "completed") {
+        secProg.completedLessons++;
+      }
+
+      // Chapter progress init
+      if (!chapterProgressMap.has(chapter.id)) {
+        chapterProgressMap.set(chapter.id, {
+          id: chapter.id,
+          slug: chapter.slug,
+          title: chapter.title,
+          status: "not_started",
+          totalSections: chapterTotals.get(chapter.id)?.totalSections || 0,
+          completedSections: 0,
+        });
+      }
+    }
+
+    // Calculate section statuses
+    for (const sec of sectionProgressMap.values()) {
+      if (sec.completedLessons === sec.totalLessons && sec.totalLessons > 0) {
+        sec.status = "completed";
+      } else if (sec.completedLessons > 0) {
+        sec.status = "in_progress";
+      }
+    }
+
+    // Calculate chapter statuses based on sections
+    for (const sec of sectionProgressMap.values()) {
+      const chapId = sectionTotals.get(sec.id)?.chapterId;
+      if (chapId && chapterProgressMap.has(chapId)) {
+        const chap = chapterProgressMap.get(chapId);
+        if (sec.status === "completed") {
+          chap.completedSections++;
+        }
+      }
+    }
+
+    for (const chap of chapterProgressMap.values()) {
+      if (chap.completedSections === chap.totalSections && chap.totalSections > 0) {
+        chap.status = "completed";
+      } else if (chap.completedSections > 0) {
+        chap.status = "in_progress";
+      }
+    }
 
     const completedLessons = lessonProgressResult.data.filter(
       (row) => row.status === "completed"
@@ -693,6 +787,9 @@ router.get(
         totalContents: contentTotalResult.count || 0,
         completedContents,
       },
+      levels: LEVEL_LIST,
+      chapterProgress: Array.from(chapterProgressMap.values()),
+      sectionProgress: Array.from(sectionProgressMap.values()),
       lessonProgress: lessonProgressResult.data,
       contentProgress: contentProgressResult.data,
     });
