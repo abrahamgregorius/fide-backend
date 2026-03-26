@@ -654,68 +654,28 @@ router.get(
   asyncHandler(async (req, res) => {
     const supabase = getSupabaseClient(req);
 
-    // Get all users with their activity counts
-    const { data: usersData, error: usersError } = await supabase
-      .from("answers")
-      .select(`
-        user_id,
-        is_correct
-      `)
-      .eq("is_correct", true);
+    // Use RPC function to get leaderboard data
+    const { data: leaderboardData, error: leaderboardError } = await supabase
+      .rpc('get_leaderboard');
 
-    if (usersError) throw usersError;
+    if (leaderboardError) throw leaderboardError;
 
-    // Aggregate points per user
-    const userPoints = {};
-    const userIds = new Set();
+    // Format the response
+    const leaderboard = leaderboardData.map((row, index) => ({
+      userId: row.user_id,
+      email: row.email,
+      points: parseInt(row.points),
+      rank: getProfileRank(parseInt(row.points)).rank,
+      level: getProfileRank(parseInt(row.points)).level,
+      position: index + 1,
+    }));
 
-    // Count correct answers
-    usersData.forEach(row => {
-      const userId = row.user_id;
-      userIds.add(userId);
-      if (!userPoints[userId]) {
-        userPoints[userId] = 0;
-      }
-      userPoints[userId] += POINTS_PER_CORRECT_ANSWER;
+    return ok(res, {
+      leaderboard,
+      totalUsers: leaderboard.length,
     });
-
-    // Add completed lessons
-    const { data: lessonsData, error: lessonsError } = await supabase
-      .from("lesson_progress")
-      .select(`
-        user_id,
-        status
-      `)
-      .eq("status", "completed");
-
-    if (lessonsError) throw lessonsError;
-
-    lessonsData.forEach(row => {
-      const userId = row.user_id;
-      userIds.add(userId);
-      if (!userPoints[userId]) {
-        userPoints[userId] = 0;
-      }
-      userPoints[userId] += POINTS_PER_COMPLETED_LESSON;
-    });
-
-    // Add boss submissions
-    const { data: bossesData, error: bossesError } = await supabase
-      .from("boss_submissions")
-      .select(`
-        user_id
-      `);
-
-    if (bossesError) throw bossesError;
-
-    bossesData.forEach(row => {
-      const userId = row.user_id;
-      userIds.add(userId);
-      if (!userPoints[userId]) {
-        userPoints[userId] = 0;
-      }
-      userPoints[userId] += POINTS_PER_BOSS_SUBMISSION;
-    });
+  })
+);
 
 router.get(
   "/leaderboard",
@@ -742,8 +702,6 @@ router.get(
       leaderboard,
       totalUsers: leaderboard.length,
     });
-  })
-);
   })
 );
 
