@@ -56,6 +56,8 @@ const endpointList = [
   { method: "POST", path: "/progress/content/:contentSlug", authRequired: true, description: "Upsert content progress" },
   { method: "GET", path: "/sections/:sectionSlug/boss", authRequired: false, description: "Get section boss details" },
   { method: "POST", path: "/boss/:bossSlug/submit", authRequired: true, description: "Submit boss answer" },
+  { method: "GET", path: "/leaderboard", authRequired: false, description: "Get leaderboard with user rankings" },
+  { method: "GET", path: "/streaks", authRequired: true, description: "Get user streak information" },
 ];
 
 function normalizeContentRow(row) {
@@ -642,6 +644,144 @@ router.get(
             pointsToNextRank: Math.max(nextRank.min - points, 0),
           }
         : null,
+    });
+  })
+);
+
+router.get(
+  "/leaderboard",
+  asyncHandler(async (req, res) => {
+    const supabase = getSupabaseClient(req);
+
+    // Get all users with their activity counts
+    const { data: usersData, error: usersError } = await supabase
+      .from("answers")
+      .select(`
+        user_id,
+        is_correct,
+        auth.users!inner(email)
+      `)
+      .eq("is_correct", true);
+
+    if (usersError) throw usersError;
+
+    // Aggregate points per user
+    const userPoints = {};
+    const userEmails = {};
+
+    // Count correct answers
+    usersData.forEach(row => {
+      const userId = row.user_id;
+      if (!userPoints[userId]) {
+        userPoints[userId] = 0;
+        userEmails[userId] = row.auth.users.email;
+      }
+      userPoints[userId] += POINTS_PER_CORRECT_ANSWER;
+    });
+
+    // Add completed lessons
+    const { data: lessonsData, error: lessonsError } = await supabase
+      .from("lesson_progress")
+      .select(`
+        user_id,
+        status,
+        auth.users!inner(email)
+      `)
+      .eq("status", "completed");
+
+    if (lessonsError) throw lessonsError;
+
+    lessonsData.forEach(row => {
+      const userId = row.user_id;
+      if (!userPoints[userId]) {
+        userPoints[userId] = 0;
+        userEmails[userId] = row.auth.users.email;
+      }
+      userPoints[userId] += POINTS_PER_COMPLETED_LESSON;
+    });
+
+    // Add boss submissions
+    const { data: bossesData, error: bossesError } = await supabase
+      .from("boss_submissions")
+      .select(`
+        user_id,
+        auth.users!inner(email)
+      `);
+
+    if (bossesError) throw bossesError;
+
+    bossesData.forEach(row => {
+      const userId = row.user_id;
+      if (!userPoints[userId]) {
+        userPoints[userId] = 0;
+        userEmails[userId] = row.auth.users.email;
+      }
+      userPoints[userId] += POINTS_PER_BOSS_SUBMISSION;
+    });
+
+    // Convert to array and sort by points descending
+    const leaderboard = Object.entries(userPoints)
+      .map(([userId, points]) => ({
+        userId,
+        email: userEmails[userId],
+        points,
+        rank: getProfileRank(points).rank,
+        level: getProfileRank(points).level,
+      }))
+      .sort((a, b) => b.points - a.points)
+      .map((user, index) => ({
+        ...user,
+        position: index + 1,
+      }));
+
+    return ok(res, {
+      leaderboard,
+      totalUsers: leaderboard.length,
+    });
+  })
+);
+
+router.get(
+  "/streaks",
+  asyncHandler(async (req, res) => {
+    const user = await getAuthenticatedUser(req);
+
+    if (!user) {
+      return unauthorized(res, "Bearer token is required for viewing streaks.");
+    }
+
+    const supabase = getSupabaseClient(req);
+
+    // Get user's streak data
+    const { data: streakData, error: streakError } = await supabase
+      .from("streaks")
+      .select("current_streak, max_streak, last_activity_date")
+      .eq("user_id", user.id)
+      .single();
+
+    if (streakError && streakError.code !== 'PGRST116') { // PGRST116 is "not found"
+      throw streakError;
+    }
+
+    // If no streak data exists, initialize with 0
+    const currentStreak = streakData?.current_streak || 0;
+    const maxStreak = streakData?.max_streak || 0;
+    const lastActivityDate = streakData?.last_activity_date;
+
+    // Calculate if streak is still active (activity within last 24 hours)
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const isStreakActive = lastActivityDate && new Date(lastActivityDate) >= yesterday;
+
+    return ok(res, {
+      userId: user.id,
+      currentStreak,
+      maxStreak,
+      lastActivityDate,
+      isStreakActive,
+      streakStatus: isStreakActive ? "active" : "broken",
     });
   })
 );

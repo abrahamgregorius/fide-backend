@@ -46,6 +46,7 @@ Endpoint yang butuh auth:
 - `POST /progress/lesson/:lessonSlug`
 - `POST /progress/content/:contentSlug`
 - `POST /boss/:bossSlug/submit`
+- `GET /streaks`
 
 ### POST /auth/signup
 
@@ -379,6 +380,68 @@ Response sukses (`201`):
 	}
 }
 ```
+
+## Leaderboard
+
+### GET /leaderboard
+
+Ambil leaderboard pengguna berdasarkan total poin tertinggi.
+
+Auth: tidak required (public)
+
+Response `data` contoh:
+
+```json
+{
+  "leaderboard": [
+    {
+      "userId": "550e8400-e29b-41d4-a716-446655440000",
+      "email": "alex.johnson@example.com",
+      "points": 1850,
+      "rank": "Doctor Ecclesiae",
+      "level": 5,
+      "position": 1
+    },
+    {
+      "userId": "550e8400-e29b-41d4-a716-446655440001",
+      "email": "sarah.wilson@example.com",
+      "points": 1420,
+      "rank": "Theologus",
+      "level": 4,
+      "position": 2
+    }
+  ],
+  "totalUsers": 5
+}
+```
+
+## Streaks
+
+### GET /streaks
+
+Ambil informasi streak aktivitas user saat ini.
+
+Auth: required
+
+Response `data` contoh:
+
+```json
+{
+  "userId": "550e8400-e29b-41d4-a716-446655440000",
+  "currentStreak": 7,
+  "maxStreak": 12,
+  "lastActivityDate": "2026-03-26T10:30:00.000Z",
+  "isStreakActive": true,
+  "streakStatus": "active"
+}
+```
+
+Keterangan streak:
+
+- `currentStreak`: Hari berturut-turut aktif
+- `maxStreak`: Rekor streak tertinggi
+- `isStreakActive`: Apakah streak masih aktif (aktivitas dalam 24 jam terakhir)
+- `streakStatus`: `"active"` atau `"broken"`
 
 ## Status Codes
 
