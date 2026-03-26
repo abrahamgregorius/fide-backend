@@ -759,10 +759,10 @@ router.post(
       return unauthorized(res, "Bearer token is required for completing boss.");
     }
 
-    const { section, isCompleted } = req.body;
+    const { sectionSlug, isCompleted } = req.body;
 
-    if (!section || typeof isCompleted !== 'boolean') {
-      return badRequest(res, "Section ID and isCompleted (boolean) are required.");
+    if (!sectionSlug || typeof isCompleted !== 'boolean') {
+      return badRequest(res, "Section slug and isCompleted (boolean) are required.");
     }
 
     if (!isCompleted) {
@@ -771,16 +771,16 @@ router.post(
 
     const supabase = getSupabaseClient(req);
 
-    // Get section by ID
+    // Get section by slug
     const { data: sectionData, error: sectionError } = await supabase
       .from("sections")
       .select("id, slug, title")
-      .eq("id", section)
+      .eq("slug", sectionSlug)
       .single();
 
     if (sectionError) {
       if (sectionError.code === 'PGRST116') {
-        return notFound(res, `Section with ID '${section}' not found.`);
+        return notFound(res, `Section with slug '${sectionSlug}' not found.`);
       }
       throw sectionError;
     }

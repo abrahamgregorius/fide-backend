@@ -456,7 +456,7 @@ Body:
 
 ```json
 {
-  "section": 1,
+  "sectionSlug": "final-boss-the-trinity-and-reason",
   "isCompleted": true
 }
 ```
@@ -467,9 +467,9 @@ Response `data` contoh:
 {
   "message": "Section completed successfully",
   "section": {
-    "id": 1,
-    "slug": "desire-and-reason",
-    "title": "Desire, Reason, and Proofs"
+    "id": 3,
+    "slug": "final-boss-the-trinity-and-reason",
+    "title": "Final Boss: The Mystery of the Godhead"
   },
   "userId": "550e8400-e29b-41d4-a716-446655440000",
   "completedAt": "2026-03-26T15:30:00.000Z"
@@ -478,7 +478,7 @@ Response `data` contoh:
 
 Keterangan:
 
-- `section`: ID dari section yang akan diselesaikan (number)
+- `sectionSlug`: Slug dari section yang akan diselesaikan (string)
 - `isCompleted`: Harus `true` untuk menyelesaikan section
 - Endpoint ini akan mengupdate `section_progress` status menjadi `completed`
 
