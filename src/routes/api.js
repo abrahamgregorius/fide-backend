@@ -659,8 +659,7 @@ router.get(
       .from("answers")
       .select(`
         user_id,
-        is_correct,
-        auth.users!inner(email)
+        is_correct
       `)
       .eq("is_correct", true);
 
@@ -668,14 +667,14 @@ router.get(
 
     // Aggregate points per user
     const userPoints = {};
-    const userEmails = {};
+    const userIds = new Set();
 
     // Count correct answers
     usersData.forEach(row => {
       const userId = row.user_id;
+      userIds.add(userId);
       if (!userPoints[userId]) {
         userPoints[userId] = 0;
-        userEmails[userId] = row.auth.users.email;
       }
       userPoints[userId] += POINTS_PER_CORRECT_ANSWER;
     });
@@ -685,8 +684,7 @@ router.get(
       .from("lesson_progress")
       .select(`
         user_id,
-        status,
-        auth.users!inner(email)
+        status
       `)
       .eq("status", "completed");
 
@@ -694,9 +692,9 @@ router.get(
 
     lessonsData.forEach(row => {
       const userId = row.user_id;
+      userIds.add(userId);
       if (!userPoints[userId]) {
         userPoints[userId] = 0;
-        userEmails[userId] = row.auth.users.email;
       }
       userPoints[userId] += POINTS_PER_COMPLETED_LESSON;
     });
@@ -705,40 +703,47 @@ router.get(
     const { data: bossesData, error: bossesError } = await supabase
       .from("boss_submissions")
       .select(`
-        user_id,
-        auth.users!inner(email)
+        user_id
       `);
 
     if (bossesError) throw bossesError;
 
     bossesData.forEach(row => {
       const userId = row.user_id;
+      userIds.add(userId);
       if (!userPoints[userId]) {
         userPoints[userId] = 0;
-        userEmails[userId] = row.auth.users.email;
       }
       userPoints[userId] += POINTS_PER_BOSS_SUBMISSION;
     });
 
-    // Convert to array and sort by points descending
-    const leaderboard = Object.entries(userPoints)
-      .map(([userId, points]) => ({
-        userId,
-        email: userEmails[userId],
-        points,
-        rank: getProfileRank(points).rank,
-        level: getProfileRank(points).level,
-      }))
-      .sort((a, b) => b.points - a.points)
-      .map((user, index) => ({
-        ...user,
-        position: index + 1,
-      }));
+router.get(
+  "/leaderboard",
+  asyncHandler(async (req, res) => {
+    const supabase = getSupabaseClient(req);
+
+    // Use RPC function to get leaderboard data
+    const { data: leaderboardData, error: leaderboardError } = await supabase
+      .rpc('get_leaderboard');
+
+    if (leaderboardError) throw leaderboardError;
+
+    // Format the response
+    const leaderboard = leaderboardData.map((row, index) => ({
+      userId: row.user_id,
+      email: row.email,
+      points: parseInt(row.points),
+      rank: getProfileRank(parseInt(row.points)).rank,
+      level: getProfileRank(parseInt(row.points)).level,
+      position: index + 1,
+    }));
 
     return ok(res, {
       leaderboard,
       totalUsers: leaderboard.length,
     });
+  })
+);
   })
 );
 
