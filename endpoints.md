@@ -47,6 +47,7 @@ Endpoint yang butuh auth:
 - `POST /progress/content/:contentSlug`
 - `POST /boss/:bossSlug/submit`
 - `GET /streaks`
+- `POST /complete-boss`
 
 ### POST /auth/signup
 
@@ -442,6 +443,44 @@ Keterangan streak:
 - `maxStreak`: Rekor streak tertinggi
 - `isStreakActive`: Apakah streak masih aktif (aktivitas dalam 24 jam terakhir)
 - `streakStatus`: `"active"` atau `"broken"`
+
+## Complete Boss
+
+### POST /complete-boss
+
+Menyelesaikan section setelah boss berhasil dikalahkan, memungkinkan user berlanjut ke section berikutnya.
+
+Auth: required
+
+Body:
+
+```json
+{
+  "section": 1,
+  "isCompleted": true
+}
+```
+
+Response `data` contoh:
+
+```json
+{
+  "message": "Section completed successfully",
+  "section": {
+    "id": 1,
+    "slug": "desire-and-reason",
+    "title": "Desire, Reason, and Proofs"
+  },
+  "userId": "550e8400-e29b-41d4-a716-446655440000",
+  "completedAt": "2026-03-26T15:30:00.000Z"
+}
+```
+
+Keterangan:
+
+- `section`: ID dari section yang akan diselesaikan (number)
+- `isCompleted`: Harus `true` untuk menyelesaikan section
+- Endpoint ini akan mengupdate `section_progress` status menjadi `completed`
 
 ## Status Codes
 

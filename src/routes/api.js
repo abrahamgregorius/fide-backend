@@ -58,6 +58,7 @@ const endpointList = [
   { method: "POST", path: "/boss/:bossSlug/submit", authRequired: true, description: "Submit boss answer" },
   { method: "GET", path: "/leaderboard", authRequired: false, description: "Get leaderboard with user rankings" },
   { method: "GET", path: "/streaks", authRequired: true, description: "Get user streak information" },
+  { method: "POST", path: "/complete-boss", authRequired: true, description: "Complete a section after boss completion" },
 ];
 
 function normalizeContentRow(row) {
@@ -782,6 +783,69 @@ router.get(
       lastActivityDate,
       isStreakActive,
       streakStatus: isStreakActive ? "active" : "broken",
+    });
+  })
+);
+
+router.post(
+  "/complete-boss",
+  asyncHandler(async (req, res) => {
+    const user = await getAuthenticatedUser(req);
+
+    if (!user) {
+      return unauthorized(res, "Bearer token is required for completing boss.");
+    }
+
+    const { section, isCompleted } = req.body;
+
+    if (!section || typeof isCompleted !== 'boolean') {
+      return badRequest(res, "Section ID and isCompleted (boolean) are required.");
+    }
+
+    if (!isCompleted) {
+      return badRequest(res, "isCompleted must be true to complete the section.");
+    }
+
+    const supabase = getSupabaseClient(req);
+
+    // Get section by ID
+    const { data: sectionData, error: sectionError } = await supabase
+      .from("sections")
+      .select("id, slug, title")
+      .eq("id", section)
+      .single();
+
+    if (sectionError) {
+      if (sectionError.code === 'PGRST116') {
+        return notFound(res, `Section with ID '${section}' not found.`);
+      }
+      throw sectionError;
+    }
+
+    // Complete the section
+    const { error: updateError } = await supabase
+      .from("section_progress")
+      .upsert({
+        user_id: user.id,
+        section_id: sectionData.id,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return ok(res, {
+      message: "Section completed successfully",
+      section: {
+        id: sectionData.id,
+        slug: sectionData.slug,
+        title: sectionData.title,
+      },
+      userId: user.id,
+      completedAt: new Date().toISOString(),
     });
   })
 );
